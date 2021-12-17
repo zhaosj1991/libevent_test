@@ -10,13 +10,73 @@
 #include <errno.h>
 #endif
 
-void ListenCB(struct evconnlistener *evc, evutil_socket_t sock, struct sockaddr *client_addr, int socklen, void *arg)
+void ReadCB(struct bufferevent *bev, void *ctx)
+{
+    char buf[1024] = {0};
+    int len = bufferevent_read(bev, buf, sizeof(buf) - 1);
+    std::cout << buf << std::endl;
+    //插入buffer链表
+    bufferevent_write(bev, "OK", 3);
+}
+
+void WriteCB(struct bufferevent *bev, void *ctx)
+{
+    std::cout << __FUNCTION__ << std::endl;
+}
+
+void EventCB(struct bufferevent *bev, short what, void *ctx)
+{
+    std::cout << __FUNCTION__ << std::endl;
+    if (what & BEV_EVENT_TIMEOUT && what && BEV_EVENT_READING) {
+        std::cout << "BEV_EVENT_READING time out!" << std::endl;
+        //读取缓冲中内容
+        
+        //清理空间，关闭监听
+        bufferevent_free(bev);
+    } 
+    else if (what & BEV_EVENT_TIMEOUT && what && BEV_EVENT_WRITING) {
+        std::cout << "BEV_EVENT_WRITE time out!" << std::endl;
+        //读取缓冲中内容
+        
+        //清理空间，关闭监听
+        bufferevent_free(bev);
+    }
+    //异常错误
+    else if (what & BEV_ERROR) {
+        //清理空间，关闭监听
+        bufferevent_free(bev);
+    }
+    //连接错误
+    else if(what & BEV_EVENT_EOF) {
+        //清理空间，关闭监听
+        bufferevent_free(bev);
+    }
+}
+
+void ListenCB(struct evconnlistener *evc, evutil_socket_t client_sock, struct sockaddr *client_addr, int socklen, void *arg)
 {
     std::cout << "ListenCB" << std::endl;
 
     char ip[16] = {0};
     evutil_inet_ntop(AF_INET, &((struct sockaddr_in *)client_addr)->sin_addr, ip, sizeof(ip));
     std::cout << "client ip is " << ip << std::endl;
+
+    //创建event对象(read和write)
+    event_base *base = (event_base *)arg;
+    bufferevent *bev = bufferevent_socket_new(base, client_sock, BEV_OPT_CLOSE_ON_FREE);
+    if (!bev) {
+        std::cerr << "bufferevent_socket_new failed!" << std::endl;
+        return;
+    }
+    
+    //添加监控事件，设置内部权限参数
+    bufferevent_enable(bev, EV_READ | EV_WRITE);
+    timeval t1 = {5, 0};
+    bufferevent_set_timeouts(bev, &t1, 0);
+    
+    //设置回调函数
+    bufferevent_setcb(bev, ReadCB, WriteCB, EventCB, base);
+    
 }
 
 int main(int argc, char const *argv[])
