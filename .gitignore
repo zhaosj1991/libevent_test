@@ -1,3 +1,5 @@
 **/.vscode
 buffer_event/buffer_event
 first_libevent/first_libevent
+protobuf_libevent/protobuf_libevent
+**/*.o

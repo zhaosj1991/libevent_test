@@ -6,25 +6,51 @@
 #include <event2/bufferevent.h>
 #include <string.h>
 
+#include "xmsg_comm.pb.h"
+#include "xmsg_event.h"
+
 using namespace std;
+using namespace xmsg;
 
 static void ReadCB(struct bufferevent *bev, void *ctx)
 {
     cout << "client: Read CB" << endl << flush;
-    char buf[1024] = {0};
-    int len = bufferevent_read(bev, buf, sizeof(buf) - 1);
-    std::cout << "client:" << buf << std::endl;
-    //插入buffer链表
-    bufferevent_write(bev, "OK", 3);
+
+    auto ev = (XMsgEvent *)ctx;
+    if (!ev->RecvMsg()) {
+        delete ev;
+        bufferevent_free(bev);
+        return;
+    }
+
+    auto msg = ev->GetMsg();
+    if (!msg) 
+        return;
+    
+    XLoginRes res;
+    res.ParseFromArray(msg->m_data, msg->m_size);
+    cout << res.res() << "recv server token " << res.token() << endl;
+
     this_thread::sleep_for(chrono::seconds(1));
+    XLoginReq req;
+    static int nUserId = 0;
+    string user("root");
+    req.set_username((user + to_string(nUserId++)).c_str());
+    req.set_password("123456");
+    ev->SendMsg(MSG_LOGIN_REQ, &req);
+
+    ev->Clear(); //清理，接收下一次消息
 }
 
 static void EventCB(struct bufferevent *bev, short what, void *ctx)
 {
     std::cout << __FUNCTION__ << std::endl;
+    auto ev = (XMsgEvent*)ctx;
     if ((what & BEV_EVENT_TIMEOUT) || (what & BEV_EVENT_ERROR) || (what & BEV_EVENT_EOF)) {
         std::cout << "BEV_EVENT_TIMEOUT BEV_EVENT_ERROR BEV_EVENT_EOF!" << std::endl;
         //读取缓冲中内容
+
+        delete ev;
         
         //清理空间，关闭监听
         bufferevent_free(bev);
@@ -33,7 +59,13 @@ static void EventCB(struct bufferevent *bev, short what, void *ctx)
 
     if (what & BEV_EVENT_CONNECTED) {
         cout << "BEV_EVENT_CONNECTED" << endl;
-        bufferevent_write(bev, "OK", 3);
+        // bufferevent_write(bev, "OK", 3);
+
+        XLoginReq req;
+        req.set_username("root");
+        req.set_password("123456");
+        ev->SendMsg(MSG_LOGIN_REQ, &req);
+        
     }
 }
 
@@ -66,11 +98,15 @@ void XMsgClient::Main()
     // sin.sin_addr.s_addr = 0;
 
     //设置回调函数
+    //添加监控事件设置内容权限参数
     bufferevent_enable(bev, EV_READ | EV_WRITE);
     timeval t1 = {30, 0};
     bufferevent_set_timeouts(bev, &t1, 0);
+
+    auto ev = new XMsgEvent();
+    ev->SetBev(bev);
     
-    bufferevent_setcb(bev, ReadCB, 0, EventCB, base);
+    bufferevent_setcb(bev, ReadCB, 0, EventCB, ev);
 
     int ret = bufferevent_socket_connect(bev, (const sockaddr *)&sin, sizeof(sin));
     if (ret != 0) {

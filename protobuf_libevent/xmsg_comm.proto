@@ -1,0 +1,38 @@
+syntax="proto3";    //版本号
+package xmsg;       //命名空间
+
+import "xmsg_type.proto";
+
+//消息头
+message XMsgHead
+{
+    //消息内容大小，不包含头
+    int32 msg_size = 1;
+    //消息类型
+    MsgType msg_type = 2;
+    //令牌，如果时登录消息则为空
+    string token = 3;
+    //微服务名称，用于路由
+    string service_name = 4;
+}
+
+//客户端用户名和密码登录请求 XLoginReq
+message XLoginReq {
+    string username = 1;    //用户名
+    string password = 2;    //md5后的密码
+}
+
+//服务端响应回复消息
+message XLoginRes
+{
+    enum XLoginResType 
+    {
+        OK = 0; //登录成功
+        ERROR = 1;  //用户名密码错误
+        NOUSER = 2; //用户不存在
+    }
+    XLoginResType res = 1;
+
+    //登录成功返回令牌，失败为空
+    string token = 2;
+}

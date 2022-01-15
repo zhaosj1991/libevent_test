@@ -1,4 +1,3 @@
-#include "xmsg_server.h"
 #include <iostream>
 #include <event2/event.h>
 #include <event2/bufferevent.h>
@@ -6,25 +5,58 @@
 
 #include <string.h>
 
+#include "xmsg_server.h"
+#include "xmsg_event.h"
+#include "xmsg_comm.pb.h"
+
 using namespace std;
+using namespace xmsg;
 
 void ReadCB(struct bufferevent *bev, void *ctx)
 {
     cout << "server: Read CB" << endl << flush;
-    char buf[1024] = {0};
-    int len = bufferevent_read(bev, buf, sizeof(buf) - 1);
-    std::cout << "server: " << buf << std::endl;
-    //插入buffer链表
-    bufferevent_write(bev, "OK", 3);
+    auto ev = (XMsgEvent *)ctx;
+    if (!ev->RecvMsg()) {
+        delete ev;
+        bufferevent_free(bev);
+        return;
+    }
+
+    auto msg = ev->GetMsg();
+    if (!msg) 
+        return; 
+    //反序列化
+    XLoginReq req;
+    req.ParseFromArray(msg->m_data, msg->m_size);
+    cout << "Recv username = " << req.username() << ", passwd = " << req.password() << endl;
+
+    //返回消息
+    XLoginRes res;
+    res.set_res(XLoginRes::OK);
+    string token = req.username();
+    token += "sign";
+    res.set_token(token);
+    ev->SendMsg(MSG_LOGIN_RES, &res);
+    ev->Clear();
+
+    // char buf[1024] = {0};
+    // int len = bufferevent_read(bev, buf, sizeof(buf) - 1);
+    // std::cout << "len: " << len << std::endl;
+    // std::cout << "server: " << buf << std::endl;
+    // //插入buffer链表
+    // bufferevent_write(bev, "OK", 3);
 }
 
 void EventCB(struct bufferevent *bev, short what, void *ctx)
 {
     std::cout << __FUNCTION__ << std::endl;
+
+    auto ev = (XMsgEvent *)ctx;
     if ((what & BEV_EVENT_TIMEOUT) || (what & BEV_EVENT_ERROR) || (what & BEV_EVENT_EOF)) {
         std::cout << "BEV_EVENT_TIMEOUT BEV_EVENT_ERROR BEV_EVENT_EOF!" << std::endl;
         //读取缓冲中内容
         
+        delete ev;
         //清理空间，关闭监听
         bufferevent_free(bev);
     } 
@@ -51,8 +83,11 @@ static void listener_cb(struct evconnlistener *listener, evutil_socket_t client_
     bufferevent_enable(bev, EV_READ | EV_WRITE);
     timeval t1 = {30, 0};
     bufferevent_set_timeouts(bev, &t1, 0);
+
+    auto ev = new XMsgEvent();
+    ev->SetBev(bev);
     
-    bufferevent_setcb(bev, ReadCB, 0, EventCB, base);
+    bufferevent_setcb(bev, ReadCB, 0, EventCB, ev);
     //设置回调函数
     
 }
