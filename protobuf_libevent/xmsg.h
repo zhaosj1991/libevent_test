@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "xmsg_type.pb.h"
+
 //头部消息的最大字节数
 #define MAX_MSG_SIZE 8192
 
@@ -19,6 +21,9 @@ public:
 
     //已经接受的数据大小
     int m_recv_size = 0;
+
+    //消息类型
+    xmsg::MsgType m_msg_type = xmsg::NONE_DO_NOT_USE;
 
     bool Alloc(int s)
     {

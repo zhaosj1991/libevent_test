@@ -8,6 +8,7 @@
 
 #include "xmsg_comm.pb.h"
 #include "xmsg_event.h"
+#include "xclient_event.h"
 
 using namespace std;
 using namespace xmsg;
@@ -16,7 +17,7 @@ static void ReadCB(struct bufferevent *bev, void *ctx)
 {
     cout << "client: Read CB" << endl << flush;
 
-    auto ev = (XMsgEvent *)ctx;
+    auto ev = (XClientEvent *)ctx;
     if (!ev->RecvMsg()) {
         delete ev;
         bufferevent_free(bev);
@@ -26,20 +27,9 @@ static void ReadCB(struct bufferevent *bev, void *ctx)
     auto msg = ev->GetMsg();
     if (!msg) 
         return;
-    
-    XLoginRes res;
-    res.ParseFromArray(msg->m_data, msg->m_size);
-    cout << res.res() << "recv server token " << res.token() << endl;
 
-    this_thread::sleep_for(chrono::seconds(1));
-    XLoginReq req;
-    static int nUserId = 0;
-    string user("root");
-    req.set_username((user + to_string(nUserId++)).c_str());
-    req.set_password("123456");
-    ev->SendMsg(MSG_LOGIN_REQ, &req);
-
-    ev->Clear(); //清理，接收下一次消息
+    ev->CallFunc(msg->m_msg_type, msg->m_data, msg->m_size);
+    ev->Clear();
 }
 
 static void EventCB(struct bufferevent *bev, short what, void *ctx)
@@ -103,7 +93,8 @@ void XMsgClient::Main()
     timeval t1 = {30, 0};
     bufferevent_set_timeouts(bev, &t1, 0);
 
-    auto ev = new XMsgEvent();
+    XClientEvent::Init();
+    auto ev = new XClientEvent();
     ev->SetBev(bev);
     
     bufferevent_setcb(bev, ReadCB, 0, EventCB, ev);

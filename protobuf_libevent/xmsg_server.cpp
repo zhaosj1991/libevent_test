@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "xmsg_server.h"
-#include "xmsg_event.h"
+#include "xserver_event.h"
 #include "xmsg_comm.pb.h"
 
 using namespace std;
@@ -15,7 +15,7 @@ using namespace xmsg;
 void ReadCB(struct bufferevent *bev, void *ctx)
 {
     cout << "server: Read CB" << endl << flush;
-    auto ev = (XMsgEvent *)ctx;
+    auto ev = (XServerEvent *)ctx;
     if (!ev->RecvMsg()) {
         delete ev;
         bufferevent_free(bev);
@@ -25,26 +25,9 @@ void ReadCB(struct bufferevent *bev, void *ctx)
     auto msg = ev->GetMsg();
     if (!msg) 
         return; 
-    //反序列化
-    XLoginReq req;
-    req.ParseFromArray(msg->m_data, msg->m_size);
-    cout << "Recv username = " << req.username() << ", passwd = " << req.password() << endl;
 
-    //返回消息
-    XLoginRes res;
-    res.set_res(XLoginRes::OK);
-    string token = req.username();
-    token += "sign";
-    res.set_token(token);
-    ev->SendMsg(MSG_LOGIN_RES, &res);
+    ev->CallFunc(msg->m_msg_type, msg->m_data, msg->m_size);
     ev->Clear();
-
-    // char buf[1024] = {0};
-    // int len = bufferevent_read(bev, buf, sizeof(buf) - 1);
-    // std::cout << "len: " << len << std::endl;
-    // std::cout << "server: " << buf << std::endl;
-    // //插入buffer链表
-    // bufferevent_write(bev, "OK", 3);
 }
 
 void EventCB(struct bufferevent *bev, short what, void *ctx)
@@ -84,7 +67,8 @@ static void listener_cb(struct evconnlistener *listener, evutil_socket_t client_
     timeval t1 = {30, 0};
     bufferevent_set_timeouts(bev, &t1, 0);
 
-    auto ev = new XMsgEvent();
+    XServerEvent::Init();
+    auto ev = new XServerEvent();
     ev->SetBev(bev);
     
     bufferevent_setcb(bev, ReadCB, 0, EventCB, ev);

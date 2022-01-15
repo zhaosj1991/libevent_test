@@ -70,6 +70,9 @@ bool XMsgEvent::RecvMsg()
             cerr << "m_msg.Alloc failed" << endl;
             return false;
         }
+
+        //消息类型
+        m_msg.m_msg_type = pbHead.msg_type();
     }
 
     //3 开始接收消息内容
