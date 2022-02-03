@@ -10,6 +10,8 @@ public:
     virtual bool Init();
     virtual void Close();
 
+    int Read(void *data, int nSize);
+
     void set_server_ip(std::string ip) { this->server_ip_ = ip; }
     void set_port(int port) { this->server_port_ = port; }
 

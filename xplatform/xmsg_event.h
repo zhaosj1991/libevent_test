@@ -4,6 +4,7 @@
 #include "xmsg.h"
 #include "xcom_task.h"
 
+//不调用bufferevent接口，直接调用XComTask的封装
 class XMsgEvent: public XComTask
 {
 public:
@@ -24,12 +25,7 @@ public:
     //@message 消息内容
     void SendMsg(xmsg::MsgType type, const google::protobuf::Message *message);
 
-    void SetBev(struct bufferevent *bev) {
-        m_bev = bev;
-    }
-
 private:
-    struct bufferevent *m_bev = nullptr;
     XMsg m_head; //消息头
     XMsg m_msg; //消息内容
 };

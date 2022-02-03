@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string.h>
 #include "xmsg_comm.pb.h"
+#include "xtools.h"
 
 using namespace std;
 using namespace xmsg;
@@ -25,6 +26,18 @@ static void SEventCB(struct bufferevent *bev, short what,void *ctx)
     task->EventCB(what);
     
 }
+
+int XComTask::Read(void *data, int nSize)
+{
+    if (!bev_) {
+        LOGERROR("bev not set");
+        return 0;
+    }
+
+    int ret = bufferevent_read(bev_, data, nSize);
+    return ret;
+}
+
 void XComTask::Close()
 {
     if(bev_)
